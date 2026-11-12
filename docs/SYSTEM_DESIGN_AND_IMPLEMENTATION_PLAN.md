@@ -275,3 +275,4 @@ The frontend requests an export format. The backend validates document ownership
 ## 14. Expected Outcome
 
 The completed application will provide an end-to-end workflow for creating, editing, saving, and exporting AI-assisted documents. Its modular architecture supports future expansion while keeping AI orchestration, file processing, persistence, and document rendering independently testable.
+

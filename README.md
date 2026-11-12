@@ -23,7 +23,7 @@
 
 ---
 
-## 🎯 Project Overview
+https://github.com/jananimurali0212/ai-enhanced-document-generator## 🎯 Project Overview
 
 The **AI-Enhanced Document Generator** is an enterprise-grade web application that assists users in creating and refining documents using generative AI. A user selects a document type, enters instructions, optionally uploads reference material, and receives a structured draft that can be edited, augmented with AI actions, and exported as **PDF** or **DOCX**.
 
