@@ -3,7 +3,7 @@
 > **Transform prompts and reference material into structured, editable, professionally formatted documents.**  
 > Powered by **React + Tailwind CSS** on the frontend, **Python FastAPI** on the backend, **Google Gemini API** for intelligence, and **Supabase** for persistence.
 
-[![Day 1 Status](https://img.shields.io/badge/Day%201%20Scope-Completed%20%26%20Verified-success?style=for-the-badge)](docs/SYSTEM_DESIGN_AND_IMPLEMENTATION_PLAN.md)
+[![Day 2 Status](https://img.shields.io/badge/Day%202%20Scope-AI%20Integration%20Completed-success?style=for-the-badge)](docs/SYSTEM_DESIGN_AND_IMPLEMENTATION_PLAN.md)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Tailwind%20CSS-blue?style=for-the-badge)](frontend/)
 [![Backend](https://img.shields.io/badge/Backend-Python%20FastAPI-emerald?style=for-the-badge)](backend/)
 [![AI Provider](https://img.shields.io/badge/AI%20Provider-Google%20Gemini%20API-orange?style=for-the-badge)](https://ai.google.dev/)
@@ -76,9 +76,42 @@ The application is structured into decoupled frontend, backend, AI orchestration
 | Phase | Milestone | Deliverables | Status |
 | :--- | :--- | :--- | :---: |
 | **Day 1** | **Foundation & UI Shell** | Initialize React & FastAPI projects; build clean dashboard, document-type selector, prompt form, drag-and-drop reference upload, and document editor shell with telemetry and mock fallback. | **COMPLETED** ✅ |
-| **Day 2** | **AI Integration** | Configure Google Gemini API on the backend; implement prompt builder, dynamic drafting, rewriting, expanding, and summarization across all categories. | *Next Up* 🚀 |
+| **Day 2** | **AI Integration** | Configure Google Gemini API on the backend; implement prompt builder, dynamic drafting, rewriting, expanding, and summarization across all categories with full error handling. | **COMPLETED** ✅ |
 | **Day 3** | **Persistence & Export** | Configure Supabase Auth and PostgreSQL database; implement document history, user profiles, PDF generation, and DOCX generation. | *Scheduled* ⏳ |
 | **Day 4** | **Quality & Release** | Document scoring & comparison; end-to-end load & failure testing; responsive audit; security lockdown and deployment. | *Scheduled* ⏳ |
+
+---
+
+## 🤖 Day 2 Scope & Delivered AI Integration
+
+1. **Google Gemini Client Configuration (`backend/app/core/config.py`)**
+   - Secure API key isolation strictly in backend environment variables (`GEMINI_API_KEY`).
+   - `.env.example` template with configurable parameters (`GEMINI_MODEL`, `TEMPERATURE`, `MAX_OUTPUT_TOKENS`, `TIMEOUT_SECONDS`).
+   - Support for `gemini-2.5-flash` with graceful local mock fallback when key is not yet set.
+
+2. **Task-Specific Prompt Builder (`backend/app/services/prompt_builder.py`)**
+   - **Grounded Generation Prompts:** Synthesizes document type, purpose, target audience, tone, target length, required structural blueprints, and source references.
+   - **Anti-Hallucination Constraints:** Mandates clear distinction between source facts and assumptions (flagged as `[Assumption]`), prohibits fabricated citations/statistics.
+   - **Interactive Editing Prompts:** Dedicated builders for rewriting (`build_rewrite_prompt`), summarization (`build_summarize_prompt`), and technical expansion (`build_expand_prompt`).
+
+3. **Gemini AI Service Layer (`backend/app/services/ai_service.py`)**
+   - Direct integration with Google GenAI SDK (`google.genai`).
+   - Response validation, title extraction, word count computation, and structured markdown parsing.
+   - Implementation of `generate_document`, `rewrite_text`, `summarize_text`, and `expand_text`.
+
+4. **FastAPI AI Routes (`backend/app/api/routes.py`)**
+   - `POST /api/generate` – Full structured draft generation from prompt parameters and reference material.
+   - `POST /api/edit/rewrite` – Section-level rewrite according to custom instructions and tone.
+   - `POST /api/edit/summarize` – Content distillation into executive takeaways or bullet points.
+   - `POST /api/edit/expand` – Section elaboration with technical depth and implementation checklists.
+
+5. **Resilient Error Handling (`backend/app/core/exceptions.py`)**
+   - User-facing error classification and retry guidance:
+     - `429 Too Many Requests` (`AI_RATE_LIMIT_EXCEEDED`) – Rate limit / quota cooldown guidance.
+     - `504 Gateway Timeout` (`AI_TIMEOUT`) – Request timeout guidance with length reduction suggestions.
+     - `503 Service Unavailable` (`AI_CONFIGURATION_ERROR`) – Clear API key setup instructions.
+     - `502 Bad Gateway` (`AI_GENERATION_FAILED`) – Malformed or empty output recovery guidance.
+   - Comprehensive Pydantic input validation on all routes.
 
 ---
 

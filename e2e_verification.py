@@ -201,9 +201,65 @@ This document outlines the streaming pipeline architecture designed for high ava
     assert "Sign off architecture" in with_action_matrix
     print(" ✔ Mock AI Action Matrix append transformation verified")
 
+def test_6_day2_ai_edit_endpoints():
+    log_section("TEST 6: Day 2 AI Edit Endpoints (Rewrite, Summarize, Expand)")
+
+    # 1. POST /api/edit/rewrite
+    rw_payload = {
+        "content": "The application database is slow and occasionally times out under peak user loads.",
+        "instruction": "Rewrite with an executive technical tone emphasizing latency degradation and SLA impact",
+        "tone": "Executive"
+    }
+    req = urllib.request.Request(
+        f"{BASE_BACKEND_URL}/api/edit/rewrite",
+        data=json.dumps(rw_payload).encode('utf-8'),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as res:
+        assert res.status == 200
+        data = json.loads(res.read().decode())
+        assert data["action"] == "rewrite"
+        assert len(data["revised_text"]) > 10
+        print(f" ✔ POST /api/edit/rewrite verified ({data['diff_summary']})")
+
+    # 2. POST /api/edit/summarize
+    sum_payload = {
+        "content": "During the architecture review, the committee decided to deploy Kafka for distributed messaging, PostgreSQL with read replicas for metadata storage, and Redis for session cache. Target launch date is September 15th with 99.99% availability.",
+        "format": "bullet_points"
+    }
+    req = urllib.request.Request(
+        f"{BASE_BACKEND_URL}/api/edit/summarize",
+        data=json.dumps(sum_payload).encode('utf-8'),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as res:
+        assert res.status == 200
+        data = json.loads(res.read().decode())
+        assert data["action"] == "summarize"
+        assert len(data["revised_text"]) > 10
+        print(f" ✔ POST /api/edit/summarize verified ({data['diff_summary']})")
+
+    # 3. POST /api/edit/expand
+    exp_payload = {
+        "content": "All requests to internal microservices must pass through the API gateway for authentication and rate limiting.",
+        "instruction": "Expand with concrete implementation details on token validation and Redis rate limiting",
+        "focus_areas": ["Token validation", "Distributed rate limiting"]
+    }
+    req = urllib.request.Request(
+        f"{BASE_BACKEND_URL}/api/edit/expand",
+        data=json.dumps(exp_payload).encode('utf-8'),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as res:
+        assert res.status == 200
+        data = json.loads(res.read().decode())
+        assert data["action"] == "expand"
+        assert data["word_count"] > 10
+        print(f" ✔ POST /api/edit/expand verified ({data['diff_summary']})")
+
 if __name__ == "__main__":
     print("\n" + "#"*65)
-    print("  AI-ENHANCED DOCUMENT GENERATOR - DAY 1 FULL E2E SUITE")
+    print("  AI-ENHANCED DOCUMENT GENERATOR - DAY 1 & DAY 2 E2E SUITE")
     print("#"*65)
     
     test_1_health_and_connectivity()
@@ -211,8 +267,9 @@ if __name__ == "__main__":
     test_3_prompt_form_and_generation_all_categories()
     test_4_file_upload_multipart()
     test_5_document_editor_telemetry_and_actions()
+    test_6_day2_ai_edit_endpoints()
     
     print("\n" + "="*65)
-    print(" 🎉 ALL 5 DAY 1 TEST SUITES PASSED WITH ZERO ERRORS!")
+    print(" 🎉 ALL DAY 1 & DAY 2 VERIFICATION TESTS PASSED WITH ZERO ERRORS!")
     print("="*65 + "\n")
 
