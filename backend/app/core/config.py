@@ -20,7 +20,7 @@ else:
 
 class Settings:
     PROJECT_NAME: str = "AI-Enhanced Document Generator"
-    VERSION: str = "0.2.0"
+    VERSION: str = "0.3.0"
     API_V1_STR: str = "/api"
 
     # Gemini API Credentials (strictly backend; never sent to frontend)
@@ -32,12 +32,26 @@ class Settings:
     MAX_OUTPUT_TOKENS: int = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "4096"))
     TIMEOUT_SECONDS: int = int(os.getenv("AI_REQUEST_TIMEOUT", "60"))
 
-    # Mock fallback flag (if true and key is absent, use high-fidelity mock generator)
+    # Supabase Configuration (Day 3: Persistence)
+    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL")
+    SUPABASE_ANON_KEY: Optional[str] = os.getenv("SUPABASE_ANON_KEY")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    SUPABASE_JWT_SECRET: Optional[str] = os.getenv("SUPABASE_JWT_SECRET")
+
+    # Local fallback flags
     ALLOW_MOCK_FALLBACK: bool = os.getenv("ALLOW_MOCK_FALLBACK", "true").lower() in ("true", "1", "yes")
+    ALLOW_DEMO_AUTH: bool = os.getenv("ALLOW_DEMO_AUTH", "true").lower() in ("true", "1", "yes")
 
     @property
     def is_gemini_configured(self) -> bool:
         return bool(self.GEMINI_API_KEY and not self.GEMINI_API_KEY.startswith("your_gemini_api_key"))
 
-settings = Settings()
+    @property
+    def is_supabase_configured(self) -> bool:
+        return bool(
+            self.SUPABASE_URL 
+            and self.SUPABASE_ANON_KEY 
+            and not self.SUPABASE_URL.startswith("https://your-project")
+        )
 
+settings = Settings()

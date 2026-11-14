@@ -1,7 +1,7 @@
 import React from 'react';
-import { SparklesIcon, FileTextIcon, SlidersIcon, Edit3Icon } from './Icons';
+import { SparklesIcon, FileTextIcon, SlidersIcon, Edit3Icon, FolderIcon } from './Icons';
 
-export const Header = ({ currentStep, setStep, selectedTemplate }) => {
+export const Header = ({ currentStep, setStep, selectedTemplate, onOpenHistory }) => {
   const steps = [
     { id: 1, name: 'Templates', icon: FileTextIcon },
     { id: 2, name: 'Prompt & Inputs', icon: SlidersIcon },
@@ -25,20 +25,19 @@ export const Header = ({ currentStep, setStep, selectedTemplate }) => {
                 <span className="font-bold text-lg tracking-tight text-slate-900 group-hover:text-brand-600 transition-colors">
                   DocuGen <span className="text-brand-600">AI</span>
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Day 1 Shell
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
+                  Day 3 Ready
                 </span>
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">
-                AI-Enhanced Document Generator & Grounding Studio
+                AI Generation • Supabase Persistence • PDF & DOCX Export
               </p>
             </div>
           </div>
 
           {/* Stepper Navigation */}
           <nav className="flex items-center gap-1 sm:gap-2">
-            {steps.map((step, idx) => {
-              const Icon = step.icon;
+            {steps.map((step) => {
               const isActive = currentStep === step.id;
               const isPassed = currentStep > step.id;
 
@@ -71,21 +70,32 @@ export const Header = ({ currentStep, setStep, selectedTemplate }) => {
             })}
           </nav>
 
-          {/* Status Indicator */}
-          <div className="flex items-center gap-3">
+          {/* Action & Status Indicator */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {onOpenHistory && (
+              <button
+                type="button"
+                onClick={onOpenHistory}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors shadow-2xs"
+                title="View saved documents history"
+              >
+                <FolderIcon className="w-4 h-4 text-brand-600" />
+                <span className="hidden sm:inline">History</span>
+              </button>
+            )}
+
             {selectedTemplate && (
               <span className="hidden lg:inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                 <span className="w-2 h-2 rounded-full bg-brand-500 animate-ping"></span>
-                <span className="font-medium text-slate-800 truncate max-w-[140px]">
+                <span className="font-medium text-slate-800 truncate max-w-[120px]">
                   {selectedTemplate.name}
                 </span>
               </span>
             )}
-            <div className="text-right">
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                Mock Ready
-              </span>
+            
+            <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              Backend Active
             </div>
           </div>
         </div>

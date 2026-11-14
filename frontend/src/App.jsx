@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { PromptForm } from './components/PromptForm';
 import { DocumentEditor } from './components/DocumentEditor';
+import { DocumentHistoryModal } from './components/DocumentHistoryModal';
 import { TEMPLATES } from './data/templates';
 
 export function App() {
@@ -11,6 +12,7 @@ export function App() {
   const [files, setFiles] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedDoc, setGeneratedDoc] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // Form parameters state
   const [formData, setFormData] = useState({
@@ -77,7 +79,7 @@ export function App() {
       } else {
         throw new Error('Backend offline or responded with error');
       }
-    } catch (err) {
+    } catch {
       // Robust client-side mock fallback so Day 1 runs standalone out of the box
       await new Promise((resolve) => setTimeout(resolve, 800)); // simulate realistic generation feel
       
@@ -144,12 +146,27 @@ In high-velocity environments, having structured documentation ensures alignment
     }
   };
 
+  const handleSelectSavedDocument = (doc) => {
+    setGeneratedDoc({
+      id: doc.id,
+      title: doc.title,
+      category: doc.document_type || 'Saved Document',
+      document_type: doc.document_type,
+      status: doc.status,
+      content: typeof doc.content === 'string' ? doc.content : JSON.stringify(doc.content, null, 2),
+      created_at: doc.created_at,
+      updated_at: doc.updated_at
+    });
+    setCurrentStep(3);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <Header
         currentStep={currentStep}
         setStep={setCurrentStep}
         selectedTemplate={selectedTemplate}
+        onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -178,20 +195,36 @@ In high-velocity environments, having structured documentation ensures alignment
             documentData={generatedDoc}
             onEditAnother={() => setCurrentStep(2)}
             onRegenerate={handleGenerate}
+            onSaveSuccess={(saved) => {
+              setGeneratedDoc((prev) => ({
+                ...prev,
+                id: saved.id,
+                title: saved.title,
+                category: saved.document_type,
+                updated_at: saved.updated_at
+              }));
+            }}
           />
         )}
       </main>
 
+      {/* Document History Modal */}
+      <DocumentHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectDocument={handleSelectSavedDocument}
+      />
+
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© 2026 DocuGen AI — Day 1 Architecture & UI Shell (React + Tailwind CSS & FastAPI)</p>
+          <p>© 2026 DocuGen AI — Day 3 Persistence & Export (React + Tailwind CSS, FastAPI & Supabase)</p>
           <div className="flex items-center gap-4 text-slate-400">
-            <span>FastAPI Backend Ready</span>
+            <span>FastAPI Backend Active</span>
             <span>•</span>
-            <span>Client Mock Mode Active</span>
+            <span>Supabase RLS Enabled</span>
             <span>•</span>
-            <span>Responsive Tailwind Layout</span>
+            <span>ReportLab & python-docx Export</span>
           </div>
         </div>
       </footer>

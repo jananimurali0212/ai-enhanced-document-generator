@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CopyIcon,
   DownloadIcon,
@@ -7,19 +7,46 @@ import {
   Edit3Icon,
   SparklesIcon,
   ArrowLeftIcon,
-  RefreshCwIcon
+  RefreshCwIcon,
+  SaveIcon,
+  LoaderIcon
 } from './Icons';
+import {
+  apiCreateDocument,
+  apiUpdateDocument,
+  apiExportPdf,
+  apiExportDocx
+} from '../services/api';
 
 export const DocumentEditor = ({
   documentData,
   onEditAnother,
-  onRegenerate
+  onRegenerate,
+  onSaveSuccess
 }) => {
   const [content, setContent] = useState(documentData?.content || "");
+  const [savedDocId, setSavedDocId] = useState(
+    documentData?.id && !documentData.id.toString().startsWith('mock-') ? documentData.id : null
+  );
   const [activeTab, setActiveTab] = useState("preview"); // 'edit' or 'preview'
   const [copied, setCopied] = useState(false);
-  const [aiActionMessage, setAiActionMessage] = useState(null);
+  const [statusMessage, setStatusMessage] = useState(null);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
+
+  // Sync state if new documentData is passed from outside
+  useEffect(() => {
+    if (documentData) {
+      setContent(documentData.content || "");
+      if (documentData.id && !documentData.id.toString().startsWith('mock-')) {
+        setSavedDocId(documentData.id);
+      } else {
+        setSavedDocId(null);
+      }
+    }
+  }, [documentData]);
 
   // Compute stats
   const stats = useMemo(() => {
@@ -41,7 +68,84 @@ export const DocumentEditor = ({
     setTimeout(() => setCopied(false), 2200);
   };
 
-  const handleDownload = (format = 'md') => {
+  // Save / Update to Supabase
+  const handleSave = async () => {
+    setIsSaving(true);
+    setStatusMessage({ type: 'info', text: 'Saving document to Supabase...' });
+
+    try {
+      if (savedDocId) {
+        // Update existing document
+        const updated = await apiUpdateDocument(savedDocId, {
+          title: documentData?.title || 'Untitled Document',
+          content: content,
+          document_type: documentData?.category || documentData?.document_type || 'General',
+          status: 'draft'
+        });
+        setStatusMessage({ type: 'success', text: `Document updated successfully in Supabase` });
+        if (onSaveSuccess) onSaveSuccess(updated);
+      } else {
+        // Create new document
+        const created = await apiCreateDocument({
+          title: documentData?.title || 'Generated Document',
+          content: content,
+          document_type: documentData?.category || documentData?.document_type || 'General',
+          status: 'draft'
+        });
+        setSavedDocId(created.id);
+        setStatusMessage({ type: 'success', text: `Saved to database with ID: ${created.id.substring(0, 8)}...` });
+        if (onSaveSuccess) onSaveSuccess(created);
+      }
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `Save failed: ${err.message}` });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 4000);
+    }
+  };
+
+  // Export to ReportLab PDF
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    setStatusMessage({ type: 'info', text: 'Generating professional PDF via ReportLab...' });
+    try {
+      await apiExportPdf({
+        documentId: savedDocId,
+        title: documentData?.title || 'Document',
+        content: content
+      });
+      setStatusMessage({ type: 'success', text: 'PDF downloaded successfully!' });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `PDF export failed: ${err.message}` });
+    } finally {
+      setIsExportingPdf(false);
+      setTimeout(() => setStatusMessage(null), 3500);
+    }
+  };
+
+  // Export to python-docx Word document
+  const handleExportDocx = async () => {
+    setIsExportingDocx(true);
+    setStatusMessage({ type: 'info', text: 'Generating editable Word document via python-docx...' });
+    try {
+      await apiExportDocx({
+        documentId: savedDocId,
+        title: documentData?.title || 'Document',
+        content: content
+      });
+      setStatusMessage({ type: 'success', text: 'DOCX downloaded successfully!' });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `DOCX export failed: ${err.message}` });
+    } finally {
+      setIsExportingDocx(false);
+      setTimeout(() => setStatusMessage(null), 3500);
+    }
+  };
+
+  // Quick fallback text/markdown download
+  const handleQuickDownload = (format = 'md') => {
     const blob = new Blob([content], { type: format === 'md' ? 'text/markdown' : 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
@@ -59,7 +163,7 @@ export const DocumentEditor = ({
 
   const handleAiAction = async (actionType) => {
     setIsAiProcessing(true);
-    setAiActionMessage(`Applying AI: ${actionType}...`);
+    setStatusMessage({ type: 'info', text: `Applying AI: ${actionType}...` });
 
     let endpoint = '/api/edit/rewrite';
     let body = {};
@@ -102,12 +206,12 @@ export const DocumentEditor = ({
         const data = await res.json();
         if (data.revised_text) {
           setContent(data.revised_text);
-          setAiActionMessage(`Applied AI: ${actionType} (${data.diff_summary || 'Updated'})`);
+          setStatusMessage({ type: 'success', text: `Applied AI: ${actionType} (${data.diff_summary || 'Updated'})` });
         }
       } else {
         throw new Error('Edit endpoint error');
       }
-    } catch (err) {
+    } catch {
       // Local fallback in case backend is offline
       if (actionType === "Shorten & Summarize") {
         setContent((prev) => `> **AI Executive Summary:** Key takeaways synthesized.\n\n` + prev.split('\n\n').slice(0, 4).join('\n\n'));
@@ -116,10 +220,10 @@ export const DocumentEditor = ({
       } else if (actionType === "Expand & Elaborate") {
         setContent((prev) => prev + `\n\n## Action & Verification Matrix\n- [ ] Finalize technical interface agreements\n- [ ] Conduct end-to-end load testing under 10k RPS\n- [ ] Complete security posture review\n`);
       }
-      setAiActionMessage(`Applied: ${actionType}`);
+      setStatusMessage({ type: 'success', text: `Applied: ${actionType}` });
     } finally {
       setIsAiProcessing(false);
-      setTimeout(() => setAiActionMessage(null), 3500);
+      setTimeout(() => setStatusMessage(null), 3500);
     }
   };
 
@@ -198,28 +302,71 @@ export const DocumentEditor = ({
               {documentData?.title || "Document Draft"}
             </h2>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-              {documentData?.category || "Standard Template"}
+              {documentData?.category || documentData?.document_type || "Standard Template"}
             </span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               Tone: {documentData?.tone || "Professional"}
             </span>
+            {savedDocId && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Persisted in Supabase
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Generated on {documentData?.created_at || "Just now"} • Ready for real-time editing & export
+            {savedDocId ? `Saved ID: ${savedDocId}` : `Generated draft ready for cloud saving & export`}
           </p>
         </div>
 
         {/* Global Document Actions */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Save / Update to Supabase */}
           <button
-            onClick={onRegenerate}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-xs transition-all"
-            title="Re-run generation with current parameters"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all disabled:opacity-50"
+            title="Save document and content to Supabase database"
           >
-            <RefreshCwIcon className="w-3.5 h-3.5" />
-            Regenerate Shell
+            {isSaving ? (
+              <LoaderIcon className="w-3.5 h-3.5 text-white" />
+            ) : (
+              <SaveIcon className="w-3.5 h-3.5" />
+            )}
+            <span>{savedDocId ? 'Update in Cloud' : 'Save to Cloud'}</span>
           </button>
 
+          {/* ReportLab PDF Export */}
+          <button
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-xs transition-all disabled:opacity-50"
+            title="Generate professional PDF via ReportLab"
+          >
+            {isExportingPdf ? (
+              <LoaderIcon className="w-3.5 h-3.5 text-white" />
+            ) : (
+              <DownloadIcon className="w-3.5 h-3.5" />
+            )}
+            <span>Export PDF</span>
+          </button>
+
+          {/* python-docx DOCX Export */}
+          <button
+            onClick={handleExportDocx}
+            disabled={isExportingDocx}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-all disabled:opacity-50"
+            title="Generate editable Word document via python-docx"
+          >
+            {isExportingDocx ? (
+              <LoaderIcon className="w-3.5 h-3.5 text-white" />
+            ) : (
+              <DownloadIcon className="w-3.5 h-3.5" />
+            )}
+            <span>Export DOCX</span>
+          </button>
+
+          {/* Copy Markdown */}
           <button
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-xs transition-all"
@@ -232,36 +379,53 @@ export const DocumentEditor = ({
             ) : (
               <>
                 <CopyIcon className="w-3.5 h-3.5" />
-                Copy Markdown
+                Copy
               </>
             )}
           </button>
 
+          {/* Quick .md / .txt fallback */}
           <div className="relative inline-flex rounded-xl shadow-xs">
             <button
-              onClick={() => handleDownload('md')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-l-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white transition-all shadow-xs"
+              onClick={() => handleQuickDownload('md')}
+              className="px-2.5 py-2 rounded-l-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-all"
+              title="Quick download as raw markdown"
             >
-              <DownloadIcon className="w-3.5 h-3.5" />
-              Download .md
+              .md
             </button>
             <button
-              onClick={() => handleDownload('txt')}
-              className="px-3 py-2 rounded-r-xl text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white border-l border-brand-500 transition-all"
-              title="Download as plain text"
+              onClick={() => handleQuickDownload('txt')}
+              className="px-2.5 py-2 rounded-r-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-l-0 border-slate-300 transition-all"
+              title="Quick download as plain text"
             >
               .txt
             </button>
           </div>
+
+          {/* Regenerate */}
+          <button
+            onClick={onRegenerate}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-all"
+            title="Re-run generation with current parameters"
+          >
+            <RefreshCwIcon className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* AI Action Notification Pill */}
-      {aiActionMessage && (
-        <div className="p-3 bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-800 flex items-center justify-between animate-fadeIn">
+      {/* Status / Notification Pill */}
+      {statusMessage && (
+        <div className={`p-3 rounded-xl text-xs flex items-center justify-between animate-fadeIn border ${
+          statusMessage.type === 'error'
+            ? 'bg-red-50 border-red-200 text-red-800'
+            : statusMessage.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-brand-50 border-brand-200 text-brand-800'
+        }`}>
           <span className="flex items-center gap-2 font-medium">
-            <SparklesIcon className="w-4 h-4 text-brand-600 animate-spin" />
-            {aiActionMessage}
+            {statusMessage.type === 'info' && <SparklesIcon className="w-4 h-4 text-brand-600 animate-spin" />}
+            {statusMessage.type === 'success' && <CheckIcon className="w-4 h-4 text-emerald-600" />}
+            {statusMessage.text}
           </span>
         </div>
       )}
@@ -425,7 +589,7 @@ export const DocumentEditor = ({
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
             <span className="text-[11px] text-slate-500">
-              Day 2 Gemini AI Integration • Live Backend Endpoints Active
+              Day 3 Persistence (Supabase) & Export (PDF/DOCX) Active
             </span>
           </div>
         </div>

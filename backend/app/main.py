@@ -3,12 +3,14 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.routes.documents import router as documents_router
+from app.routes.export import router as export_router
 from app.core.config import settings
 from app.core.exceptions import AIServiceException
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API providing template metadata, Gemini-powered AI document generation, rewriting, summarization, and expansion.",
+    description="Backend API providing template metadata, Gemini-powered AI document generation, persistent Supabase CRUD, and PDF/DOCX exports.",
     version=settings.VERSION
 )
 
@@ -31,9 +33,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]
 )
 
+# Register all route modules
 app.include_router(router)
+app.include_router(documents_router)
+app.include_router(export_router)
 
 @app.get("/")
 def root():
@@ -42,5 +48,6 @@ def root():
         "documentation": "/docs",
         "health": "/api/health",
         "version": settings.VERSION,
-        "is_gemini_configured": settings.is_gemini_configured
+        "is_gemini_configured": settings.is_gemini_configured,
+        "is_supabase_configured": settings.is_supabase_configured
     }

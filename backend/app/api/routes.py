@@ -32,6 +32,7 @@ def health_check():
         "ai_provider": "Google Gemini API",
         "model": settings.GEMINI_MODEL,
         "is_gemini_configured": settings.is_gemini_configured,
+        "is_supabase_configured": settings.is_supabase_configured,
         "mode": "live_gemini" if settings.is_gemini_configured else "mock_fallback",
         "timestamp": datetime.now().isoformat()
     }

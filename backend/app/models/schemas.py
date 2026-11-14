@@ -146,3 +146,8 @@ class ErrorResponse(BaseModel):
     detail: str
     error_type: str
     retry_guidance: Optional[str] = None
+
+# Day 3 Persistence & Export Schemas (re-exported for convenience)
+from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentInDB, DocumentListResponse
+from app.schemas.export import ExportRequest
+
