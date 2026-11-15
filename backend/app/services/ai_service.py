@@ -324,6 +324,101 @@ class AIService:
         )
 
     # --------------------------------------------------------------------------
+    # Intelligent Document Improvement (Day 4)
+    # --------------------------------------------------------------------------
+    def improve_content(
+        self,
+        content: str,
+        operation: str,
+        instruction: Optional[str] = None,
+        context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Applies a targeted editorial improvement operation to document content.
+        Preserves core meaning, technical terms, and markdown formatting.
+        Returns the original and revised text with an explanation.
+        """
+        trimmed = content.strip()
+        if not trimmed:
+            raise AIGenerationException("Content to improve cannot be empty.")
+
+        op_lower = operation.lower()
+        operation_prompts = {
+            "improve_grammar": "Correct all grammatical errors, spelling typos, punctuation inaccuracies, and awkward syntax while strictly preserving all original assertions and markdown formatting.",
+            "improve_professionalism": "Elevate tone to an authoritative, executive standard. Replace colloquial phrases with precise industry terminology while keeping all facts and structure intact.",
+            "simplify_language": "Simplify convoluted language, split overly long compound sentences, and make the text clear and accessible without losing technical accuracy.",
+            "expand_explanations": "Expand this content by providing concrete explanations, illustrative technical context, and deeper rationale for each assertion.",
+            "shorten_content": "Condense and tighten this content. Eliminate redundant phrasing and fluff while preserving every critical factual detail and key takeaway.",
+            "improve_readability": "Refine flow, cadence, and transition between paragraphs. Ensure clean formatting and balanced sentence pacing.",
+            "improve_structure": "Reorganize the content with prominent, logical section headings, formatted bullet points, and numbered steps where appropriate.",
+            "rewrite_paragraph": instruction or "Rewrite for maximum impact, conciseness, and clarity."
+        }
+
+        directive = operation_prompts.get(op_lower, instruction or "Improve clarity, tone, and professional flow.")
+
+        prompt = f"""You are an elite document editor and writing enhancement expert.
+Your task is to refine the provided document content according to this specific improvement goal:
+
+OPERATION: {operation}
+INSTRUCTION: {directive}
+CONTEXT / TOPIC: {context or 'General document revision'}
+
+--- ORIGINAL CONTENT ---
+{trimmed}
+--- END ORIGINAL CONTENT ---
+
+STRICT EDITORIAL RULES:
+1. Preserve all domain-specific technical terminology (e.g., API names, protocols, metrics).
+2. Maintain all existing Markdown structure (headings, tables, lists, code spans).
+3. Do NOT hallucinate new unsupported facts, statistics, or fictitious company names.
+4. Output ONLY the revised markdown text. Do NOT wrap in outer ```markdown code blocks. Do not add intro/outro commentary.
+"""
+
+        raw_text = self._call_gemini_api(prompt)
+
+        if not raw_text:
+            revised = self._mock_improve(trimmed, op_lower, directive)
+            model_used = "local_mock_engine"
+            diff_summary = f"Applied {operation} via local fallback engine."
+        else:
+            revised = self._strip_markdown_code_fences(raw_text)
+            model_used = self.model_name
+            orig_wc = len(trimmed.split())
+            rev_wc = len(revised.split())
+            diff_summary = f"Applied {operation}: {orig_wc} words -> {rev_wc} words ({'+' if rev_wc >= orig_wc else ''}{rev_wc - orig_wc} words)."
+
+        return {
+            "original_text": trimmed,
+            "revised_text": revised,
+            "operation": operation,
+            "directive": directive,
+            "diff_summary": diff_summary,
+            "model_used": model_used,
+            "word_count": len(revised.split())
+        }
+
+    def _mock_improve(self, text: str, operation: str, directive: str) -> str:
+        """Local mock heuristic improvement when Gemini is offline."""
+        if "grammar" in operation:
+            # Fix simple common typos
+            cleaned = text.replace("teh", "the").replace("recieve", "receive").replace("seperate", "separate")
+            return cleaned
+        elif "professional" in operation:
+            return text.replace("good", "exceptional").replace("fast", "high-velocity").replace("big", "substantial").replace("stuff", "deliverables")
+        elif "simplify" in operation:
+            return re.sub(r"\butilize\b", "use", text, flags=re.IGNORECASE)
+        elif "shorten" in operation:
+            lines = [l for l in text.split("\n") if l.strip()]
+            return "\n\n".join(lines[:max(1, len(lines) - 1)])
+        elif "expand" in operation:
+            return text + "\n\n> **Key Implementation Note:** Ensure system components are instrumented with distributed tracing and proactive telemetry."
+        elif "structure" in operation:
+            if not text.startswith("#"):
+                return f"## 1. Core Specification\n\n{text}\n\n## 2. Strategic Deliverables\n- Verified architecture alignment\n- Automated quality benchmarks"
+            return text
+        return f"{text}\n\n*(Refined with {directive})*"
+
+    # --------------------------------------------------------------------------
     # Mock Helpers (Used when GEMINI_API_KEY is not set)
     # --------------------------------------------------------------------------
     def _mock_rewrite(self, req: RewriteRequest) -> str:

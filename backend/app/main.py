@@ -5,12 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.routes.documents import router as documents_router
 from app.routes.export import router as export_router
+from app.routes.quality import router as quality_router
 from app.core.config import settings
 from app.core.exceptions import AIServiceException
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API providing template metadata, Gemini-powered AI document generation, persistent Supabase CRUD, and PDF/DOCX exports.",
+    description="Backend API providing template metadata, Gemini-powered AI document generation, persistent Supabase CRUD, PDF/DOCX exports, and AI Quality & Comparison analytics.",
     version=settings.VERSION
 )
 
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(documents_router)
 app.include_router(export_router)
+app.include_router(quality_router)
 
 @app.get("/")
 def root():

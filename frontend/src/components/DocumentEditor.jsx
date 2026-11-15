@@ -9,14 +9,21 @@ import {
   ArrowLeftIcon,
   RefreshCwIcon,
   SaveIcon,
-  LoaderIcon
+  LoaderIcon,
+  AwardIcon,
+  GitCompareIcon,
+  ZapIcon
 } from './Icons';
 import {
   apiCreateDocument,
   apiUpdateDocument,
   apiExportPdf,
-  apiExportDocx
+  apiExportDocx,
+  apiImproveContent,
+  apiCompareDocuments
 } from '../services/api';
+import { QualityDashboardModal } from './QualityDashboardModal';
+import { DiffComparisonModal } from './DiffComparisonModal';
 
 export const DocumentEditor = ({
   documentData,
@@ -35,6 +42,11 @@ export const DocumentEditor = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
+
+  // Day 4 Modals & States
+  const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+  const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
+  const [activeDiffData, setActiveDiffData] = useState(null);
 
   // Sync state if new documentData is passed from outside
   useEffect(() => {
@@ -161,69 +173,71 @@ export const DocumentEditor = ({
     URL.revokeObjectURL(url);
   };
 
-  const handleAiAction = async (actionType) => {
+  // Day 4: Trigger AI Improvement with Diff Review
+  const handleTriggerImprove = async (operation) => {
     setIsAiProcessing(true);
-    setStatusMessage({ type: 'info', text: `Applying AI: ${actionType}...` });
-
-    let endpoint = '/api/edit/rewrite';
-    let body = {};
-
-    if (actionType === "Elevate Tone") {
-      endpoint = '/api/edit/rewrite';
-      body = {
-        content: content,
-        instruction: "Elevate tone to executive and polish technical phrasing while preserving all facts and structure",
-        tone: "Executive",
-        context: documentData?.title || ""
-      };
-    } else if (actionType === "Shorten & Summarize") {
-      endpoint = '/api/edit/summarize';
-      body = {
-        content: content,
-        format: "executive",
-        target_length: "Concise summary",
-        context: documentData?.title || ""
-      };
-    } else if (actionType === "Expand & Elaborate") {
-      endpoint = '/api/edit/expand';
-      body = {
-        content: content,
-        instruction: "Expand with deep technical specifications, edge-case analysis, and an actionable implementation checklist",
-        focus_areas: ["technical architecture", "risk mitigation", "implementation checklist"],
-        tone: "Technical",
-        context: documentData?.title || ""
-      };
-    }
+    const opTitle = operation.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    setStatusMessage({ type: 'info', text: `Applying AI Improvement: ${opTitle}...` });
 
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      const impRes = await apiImproveContent({
+        documentId: savedDocId,
+        content: content,
+        operation: operation,
+        context: documentData?.title || ""
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.revised_text) {
-          setContent(data.revised_text);
-          setStatusMessage({ type: 'success', text: `Applied AI: ${actionType} (${data.diff_summary || 'Updated'})` });
-        }
-      } else {
-        throw new Error('Edit endpoint error');
-      }
-    } catch {
-      // Local fallback in case backend is offline
-      if (actionType === "Shorten & Summarize") {
-        setContent((prev) => `> **AI Executive Summary:** Key takeaways synthesized.\n\n` + prev.split('\n\n').slice(0, 4).join('\n\n'));
-      } else if (actionType === "Elevate Tone") {
-        setContent((prev) => prev.replace(/Engineering/g, "Strategic Engineering").replace(/solution/g, "enterprise-grade solution"));
-      } else if (actionType === "Expand & Elaborate") {
-        setContent((prev) => prev + `\n\n## Action & Verification Matrix\n- [ ] Finalize technical interface agreements\n- [ ] Conduct end-to-end load testing under 10k RPS\n- [ ] Complete security posture review\n`);
-      }
-      setStatusMessage({ type: 'success', text: `Applied: ${actionType}` });
+      // Calculate diff between current content and revised
+      const diffRes = await apiCompareDocuments({
+        originalText: content,
+        revisedText: impRes.revised_text,
+        title: `AI Improvement: ${opTitle}`
+      });
+
+      setActiveDiffData({
+        ...diffRes,
+        original_text: content,
+        revised_text: impRes.revised_text
+      });
+      setIsDiffModalOpen(true);
+      setStatusMessage({ type: 'success', text: `Generated revision: review diff and accept or discard.` });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `Improvement failed: ${err.message}` });
     } finally {
       setIsAiProcessing(false);
-      setTimeout(() => setStatusMessage(null), 3500);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
+  };
+
+  // Compare Current Editor vs Saved Document
+  const handleCompareWithSaved = async () => {
+    if (!savedDocId) {
+      alert("Please save this document to Supabase first before comparing with previous saved version.");
+      return;
+    }
+
+    setIsAiProcessing(true);
+    setStatusMessage({ type: 'info', text: 'Comparing current editor text with saved version...' });
+
+    try {
+      const diffRes = await apiCompareDocuments({
+        documentId1: savedDocId,
+        revisedText: content,
+        title: `Current Editor vs Saved Version`
+      });
+
+      setActiveDiffData({
+        ...diffRes,
+        original_text: documentData?.content || "",
+        revised_text: content
+      });
+      setIsDiffModalOpen(true);
+      setStatusMessage({ type: 'success', text: `Comparison loaded.` });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `Comparison error: ${err.message}` });
+    } finally {
+      setIsAiProcessing(false);
+      setTimeout(() => setStatusMessage(null), 3000);
     }
   };
 
@@ -315,12 +329,35 @@ export const DocumentEditor = ({
             )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            {savedDocId ? `Saved ID: ${savedDocId}` : `Generated draft ready for cloud saving & export`}
+            {savedDocId ? `Saved ID: ${savedDocId}` : `Generated draft ready for cloud saving, quality audit & export`}
           </p>
         </div>
 
         {/* Global Document Actions */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Day 4: Quality & Completeness Modal Trigger */}
+          <button
+            onClick={() => setIsQualityModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-2xs transition-all"
+            title="Inspect quality score, category breakdown, and completeness matrix"
+          >
+            <AwardIcon className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Quality Score</span>
+          </button>
+
+          {/* Day 4: Compare with Saved */}
+          {savedDocId && (
+            <button
+              onClick={handleCompareWithSaved}
+              disabled={isAiProcessing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs transition-all disabled:opacity-50"
+              title="Compare current draft against last saved revision"
+            >
+              <GitCompareIcon className="w-3.5 h-3.5" />
+              <span>Compare</span>
+            </button>
+          )}
+
           {/* Save / Update to Supabase */}
           <button
             onClick={handleSave}
@@ -348,7 +385,7 @@ export const DocumentEditor = ({
             ) : (
               <DownloadIcon className="w-3.5 h-3.5" />
             )}
-            <span>Export PDF</span>
+            <span>PDF</span>
           </button>
 
           {/* python-docx DOCX Export */}
@@ -363,7 +400,7 @@ export const DocumentEditor = ({
             ) : (
               <DownloadIcon className="w-3.5 h-3.5" />
             )}
-            <span>Export DOCX</span>
+            <span>DOCX</span>
           </button>
 
           {/* Copy Markdown */}
@@ -524,34 +561,64 @@ export const DocumentEditor = ({
             </div>
           )}
 
-          {/* AI Action Buttons */}
-          <div className="flex items-center gap-1.5 ml-auto">
+          {/* Day 4 AI Improvement Toolbar */}
+          <div className="flex flex-wrap items-center gap-1.5 ml-auto">
             <span className="text-[11px] font-semibold text-slate-400 hidden xl:inline">
-              AI Tools:
+              AI Refinements:
             </span>
             <button
               type="button"
               disabled={isAiProcessing}
-              onClick={() => handleAiAction("Elevate Tone")}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
+              onClick={() => handleTriggerImprove("improve_grammar")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+              title="Fix spelling, grammar and syntax errors"
             >
-              Elevate Tone
+              Fix Grammar
             </button>
             <button
               type="button"
               disabled={isAiProcessing}
-              onClick={() => handleAiAction("Shorten & Summarize")}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+              onClick={() => handleTriggerImprove("improve_professionalism")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
+              title="Elevate tone to executive and authoritative standard"
+            >
+              Make Professional
+            </button>
+            <button
+              type="button"
+              disabled={isAiProcessing}
+              onClick={() => handleTriggerImprove("simplify_language")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors disabled:opacity-50"
+              title="Simplify convoluted sentences into clear prose"
+            >
+              Simplify
+            </button>
+            <button
+              type="button"
+              disabled={isAiProcessing}
+              onClick={() => handleTriggerImprove("expand_explanations")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 transition-colors disabled:opacity-50"
+              title="Expand with concrete technical details and examples"
+            >
+              + Expand
+            </button>
+            <button
+              type="button"
+              disabled={isAiProcessing}
+              onClick={() => handleTriggerImprove("shorten_content")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition-colors disabled:opacity-50"
+              title="Condense and remove fluff"
             >
               Shorten
             </button>
             <button
               type="button"
               disabled={isAiProcessing}
-              onClick={() => handleAiAction("Expand & Elaborate")}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 transition-colors disabled:opacity-50"
+              onClick={() => handleTriggerImprove("improve_structure")}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors disabled:opacity-50"
+              title="Organize with headings and numbered milestones"
             >
-              + Expand
+              Structure
             </button>
           </div>
         </div>
@@ -587,13 +654,34 @@ export const DocumentEditor = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span className="text-[11px] text-slate-500">
-              Day 3 Persistence (Supabase) & Export (PDF/DOCX) Active
+            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+            <span className="text-[11px] text-slate-600 font-medium">
+              Day 4 Active: Quality Scoring • Completeness Matrix • Diff Comparison Review
             </span>
           </div>
         </div>
       </div>
+
+      {/* Quality & Completeness Modal */}
+      <QualityDashboardModal
+        isOpen={isQualityModalOpen}
+        onClose={() => setIsQualityModalOpen(false)}
+        content={content}
+        documentType={documentData?.category || documentData?.document_type || "General Document"}
+        documentId={savedDocId}
+        onTriggerImprove={handleTriggerImprove}
+      />
+
+      {/* Diff Comparison & Review Modal */}
+      <DiffComparisonModal
+        isOpen={isDiffModalOpen}
+        onClose={() => setIsDiffModalOpen(false)}
+        diffData={activeDiffData}
+        onApplyChanges={(revised) => {
+          setContent(revised);
+          setStatusMessage({ type: 'success', text: 'Applied AI revision to editor.' });
+        }}
+      />
     </div>
   );
 };

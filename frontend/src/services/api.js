@@ -196,3 +196,91 @@ export const apiExportDocx = async ({ documentId = null, title = 'Document', con
   triggerDownload(blob, filename);
   return { filename, size: blob.size };
 };
+
+// ----------------------------------------------------------------------
+// Day 4: Quality Assessment, Completeness & Comparison Endpoints
+// ----------------------------------------------------------------------
+
+export const apiAnalyzeQuality = async ({ documentId = null, content = null, documentType = "General Document", context = null }) => {
+  const body = {};
+  if (documentId) body.document_id = documentId;
+  if (content) body.content = content;
+  if (documentType) body.document_type = documentType;
+  if (context) body.context = context;
+
+  const res = await fetch('/api/quality/analyze', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Quality analysis failed (${res.status})`);
+  }
+
+  return await res.json();
+};
+
+export const apiAnalyzeCompleteness = async ({ documentId = null, content = null, documentType = "General Document" }) => {
+  const body = {};
+  if (documentId) body.document_id = documentId;
+  if (content) body.content = content;
+  if (documentType) body.document_type = documentType;
+
+  const res = await fetch('/api/quality/completeness', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Completeness analysis failed (${res.status})`);
+  }
+
+  return await res.json();
+};
+
+export const apiImproveContent = async ({ documentId = null, content = null, operation = "improve_writing", instruction = null, context = null }) => {
+  const body = { operation };
+  if (documentId) body.document_id = documentId;
+  if (content) body.content = content;
+  if (instruction) body.instruction = instruction;
+  if (context) body.context = context;
+
+  const res = await fetch('/api/quality/improve', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Document improvement failed (${res.status})`);
+  }
+
+  return await res.json();
+};
+
+export const apiCompareDocuments = async ({ documentId1 = null, documentId2 = null, originalText = null, revisedText = null, title = null }) => {
+  const body = {};
+  if (documentId1) body.document_id_1 = documentId1;
+  if (documentId2) body.document_id_2 = documentId2;
+  if (originalText !== null) body.original_text = originalText;
+  if (revisedText !== null) body.revised_text = revisedText;
+  if (title) body.title = title;
+
+  const res = await fetch('/api/documents/compare', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Document comparison failed (${res.status})`);
+  }
+
+  return await res.json();
+};

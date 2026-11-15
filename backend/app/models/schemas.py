@@ -151,3 +151,16 @@ class ErrorResponse(BaseModel):
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentInDB, DocumentListResponse
 from app.schemas.export import ExportRequest
 
+# Day 4 Quality, Completeness & Comparison Schemas
+from app.schemas.quality import (
+    QualityAnalyzeRequest,
+    QualityAnalyzeResponse,
+    QualityCategoryScores,
+    CompletenessRequest,
+    CompletenessResponse,
+    ImproveRequest,
+    ImproveResponse,
+    CompareRequest,
+    CompareResponse
+)
+
